@@ -11,5 +11,17 @@ auth_service = AuthService(db, JWTHandler())
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(body: UserCreate):
-    # register
-    return auth_service.register()
+    try:
+        token = await auth_service.register(body.username, body.password)
+        return {'JWT': token}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/login")
+async def login(body: UserLogin):
+    try:
+        token = await auth_service.login(body.username, body.password)
+        return {'JWT': token}
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
