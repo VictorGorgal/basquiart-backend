@@ -3,12 +3,12 @@ version: "3.9"
 services:
   postgres:
     image: postgres:15
-    container_name: fastapi_postgres_c14
+    container_name: fastapi_postgres_s204
     restart: unless-stopped
     environment:
-      POSTGRES_USER: c14
+      POSTGRES_USER: s204
       POSTGRES_PASSWORD: senhamuitosegura
-      POSTGRES_DB: mydb2
+      POSTGRES_DB: mydb
     ports:
       - "5432:5432"
     security_opt:
