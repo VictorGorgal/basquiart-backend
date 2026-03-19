@@ -15,8 +15,11 @@ model User {
   createdAt DateTime @default(now())
 
   memberships     GroupMember[]
+  posts           Post[]
   sentInvites     Invite[]      @relation("InviteSender")
   receivedInvites Invite[]   @relation("InviteReceiver")
+  likes           PostLike[]
+  ratings         PostRating[]
 }
 
 model Group {
@@ -26,6 +29,7 @@ model Group {
   createdAt   DateTime @default(now())
 
   members  GroupMember[]
+  posts    Post[]
   invites  Invite[]
 }
 
@@ -59,4 +63,59 @@ model GroupMember {
 enum GroupRole {
   MEMBER
   OWNER
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+
+  authorId Int
+  groupId  Int
+  author   User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  group    Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  images   PostImage[]
+  likes    PostLike[]
+  ratings  PostRating[]
+}
+
+model PostImage {
+  id        Int      @id @default(autoincrement())
+  url       String
+  createdAt DateTime @default(now())
+
+  postId Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model PostLike {
+  createdAt DateTime @default(now())
+
+  userId Int
+  postId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model RatingCategory {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  ratings PostRating[]
+}
+
+model PostRating {
+  score Int  // 1-5
+
+  userId     Int
+  postId     Int
+  categoryId Int
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post       Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category   RatingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId, categoryId])
 }
