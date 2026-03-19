@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: fastapi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: c14
+      POSTGRES_PASSWORD: senhamuitosegura
+      POSTGRES_DB: mydb2
+    ports:
+      - "5432:5432"
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
