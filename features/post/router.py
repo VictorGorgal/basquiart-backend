@@ -7,9 +7,10 @@ from features.post.image_handler import image_handler
 from features.post.service import PostService
 from features.post.schema import RatePostBody, PaginatedPostsResponse
 from features.core.database import db
+from features.post.image_handler import ImageHandler
 
 router = APIRouter(prefix="/posts", tags=["posts"])
-service = PostService(db)
+service = PostService(db, ImageHandler())
 
 
 @router.get("/{group_id}", response_model=PaginatedPostsResponse)
@@ -33,17 +34,9 @@ async def make_post(
         images: List[UploadFile] = File(default=[]),
         user_id: int = Depends(get_current_user),
 ):
-    image_urls = []
     try:
-        for image in images:
-            url = await image_handler.save(image)
-            image_urls.append(url)
-
-        return await service.make_post(user_id, group_id, content, image_urls)
+        return await service.make_post(user_id, group_id, content, images)
     except ValueError as e:
-        for url in image_urls:  # clean up any saved files if something fails
-            image_handler.delete(url)
-
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -53,9 +46,7 @@ async def delete_post(
         user_id: int = Depends(get_current_user),
 ):
     try:
-        image_urls = await service.delete_post(user_id, post_id)
-        for url in image_urls:
-            image_handler.delete(url)
+        await service.delete_post(user_id, post_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

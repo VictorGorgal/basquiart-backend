@@ -1,4 +1,5 @@
 from prisma import Prisma
+from image_handler import ImageHandler
 
 
 def _aggregate_ratings(ratings) -> list[dict]:
@@ -20,8 +21,9 @@ def _aggregate_ratings(ratings) -> list[dict]:
 
 
 class PostService:
-    def __init__(self, db: Prisma):
+    def __init__(self, db: Prisma, image_handler: ImageHandler):
         self.db = db
+        self.image_handler = image_handler
 
     async def get_posts(self, user_id, group_id, page, page_size):
         membership = await self.db.groupmember.find_unique(
@@ -65,25 +67,38 @@ class PostService:
             ],
         }
 
-    async def make_post(self, user_id, group_id, content, image_urls: list[str]):
-        membership = await self.db.groupmember.find_unique(
-            where={"userId_groupId": {"userId": user_id, "groupId": group_id}}
-        )
-        if not membership:
-            raise ValueError("You are not a member of this group")
+    async def make_post(self, user_id, group_id, content, images):
+        image_urls = []
 
-        post = await self.db.post.create(
-            data={
-                "content": content,
-                "authorId": user_id,
-                "groupId": group_id,
-                "images": {
-                    "create": [{"url": url} for url in image_urls]
+        try:
+            for image in images:
+                url = await self.image_handler.save(image)
+                image_urls.append(url)
+
+            membership = await self.db.groupmember.find_unique(
+                where={"userId_groupId": {"userId": user_id, "groupId": group_id}}
+            )
+            if not membership:
+                raise ValueError("You are not a member of this group")
+
+            post = await self.db.post.create(
+                data={
+                    "content": content,
+                    "authorId": user_id,
+                    "groupId": group_id,
+                    "images": {
+                        "create": [{"url": url} for url in image_urls]
+                    },
                 },
-            },
-            include={"images": True},
-        )
-        return post
+                include={"images": True},
+            )
+            return post
+        except ValueError as e:
+            # clean up any saved files if something fails and rethrow error
+            for url in image_urls:
+                image_handler.delete(url)
+
+            raise e
 
     async def delete_post(self, user_id, post_id):
         """Returns list of image URLs so the router can delete the files after."""
@@ -106,7 +121,10 @@ class PostService:
             raise ValueError("You can only delete your own posts")
 
         await self.db.post.delete(where={"id": post_id})
-        return [img.url for img in post.images]
+        image_urls = [img.url for img in post.images]
+
+        for url in image_urls:
+            self.image_handler.delete(url)
 
     async def toggle_like(self, user_id, post_id):
         post = await self.db.post.find_unique(where={"id": post_id})

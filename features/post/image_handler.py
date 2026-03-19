@@ -53,6 +53,3 @@ class ImageHandler:
     def _generate_filename(self, original: str) -> str:
         ext = original.rsplit(".", 1)[-1]
         return f"{uuid.uuid4()}.{ext}"
-
-
-image_handler = ImageHandler()
