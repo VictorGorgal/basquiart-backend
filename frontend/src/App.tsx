@@ -970,8 +970,7 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(groupId || null);
 
   useEffect(() => {
-    fetch(`/api/groups?user_id=${user.id}`)
-      .then(res => res.json())
+    api.groups.listMine()
       .then(groups => {
         setUserGroups(groups);
         if (groupId) {
@@ -979,6 +978,10 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
         } else if (!selectedGroupId && groups.length > 0) {
           setSelectedGroupId(groups[0].id);
         }
+      })
+      .catch(err => {
+        console.error(err);
+        setUserGroups([]);
       });
   }, [user.id, groupId]);
 
