@@ -7,10 +7,9 @@ from features.post.image_handler import image_handler
 from features.post.service import PostService
 from features.post.schema import RatePostBody, PaginatedPostsResponse
 from features.core.database import db
-from features.post.image_handler import ImageHandler
 
 router = APIRouter(prefix="/posts", tags=["posts"])
-service = PostService(db, ImageHandler())
+service = PostService(db, image_handler)
 
 
 @router.get("/{group_id}", response_model=PaginatedPostsResponse)

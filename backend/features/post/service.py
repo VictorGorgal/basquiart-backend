@@ -1,5 +1,5 @@
 from prisma import Prisma
-from image_handler import ImageHandler
+from features.post.image_handler import ImageHandler
 
 
 def _aggregate_ratings(ratings) -> list[dict]:
@@ -96,7 +96,7 @@ class PostService:
         except ValueError as e:
             # clean up any saved files if something fails and rethrow error
             for url in image_urls:
-                image_handler.delete(url)
+                self.image_handler.delete(url)
 
             raise e
 
