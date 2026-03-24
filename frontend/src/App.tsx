@@ -568,16 +568,15 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
 
   const fetchGroups = () => {
     console.log("Fetching groups for user:", user.id);
-    fetch(`/api/groups?user_id=${user.id}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch user groups");
-        return res.json();
-      })
+    api.groups.listMine()
       .then(data => {
-        console.log("User groups:", data);
+        console.log("User groups (backend):", data);
         setGroups(data);
       })
-      .catch(err => console.error(err));
+      .catch(err => {
+        console.error(err);
+        setGroups([]);
+      });
     
     fetch('/api/groups/public')
       .then(res => {
@@ -762,7 +761,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
                   <Users size={14}/> {group.member_count} Membros
                 </div>
                 <div className="font-sans text-[10px] tracking-widest font-bold uppercase text-gold/60">
-                  Código: {group.invite_code}
+                  {group.invite_code ? `Codigo: ${group.invite_code}` : 'Integrado via backend'}
                 </div>
               </div>
             </div>

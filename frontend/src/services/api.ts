@@ -1,4 +1,4 @@
-import type { User } from '../types';
+import type { Group, User } from '../types';
 import { authService } from './auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -8,12 +8,39 @@ export type AuthResponse = {
   user?: User;
 };
 
+type BackendGroupSummary = {
+  groupId: number;
+  name: string;
+  role: 'OWNER' | 'MEMBER';
+  lastPost?: {
+    content: string;
+    author: string;
+    createdAt: string;
+  } | null;
+};
+
 function withAvatar<T extends User>(user: T): T {
   return {
     ...user,
     avatar_url:
       user.avatar_url ||
       `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}`,
+  };
+}
+
+function mapGroupSummary(group: BackendGroupSummary): Group {
+  return {
+    id: group.groupId,
+    name: group.name,
+    description: group.lastPost
+      ? `Ultimo post de ${group.lastPost.author}`
+      : `Participacao como ${group.role.toLowerCase()}`,
+    creator_id: 0,
+    invite_code: '',
+    visibility: 'private',
+    member_count: 0,
+    cover_url: undefined,
+    created_at: group.lastPost?.createdAt || new Date().toISOString(),
   };
 }
 
@@ -100,6 +127,14 @@ export const authApi = {
   },
 };
 
+export const groupApi = {
+  async listMine(): Promise<Group[]> {
+    const response = await requestWithAuth<BackendGroupSummary[]>('/group/');
+    return response.map(mapGroupSummary);
+  },
+};
+
 export const api = {
   auth: authApi,
+  groups: groupApi,
 };
