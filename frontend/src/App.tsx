@@ -407,8 +407,26 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
   const [loading, setLoading] = useState(true);
   const [ratingTarget, setRatingTarget] = useState<Artwork | null>(null);
   const [openComments, setOpenComments] = useState<number | null>(null);
+  const isBackendGroupFeed = Boolean(groupId);
 
   const fetchArt = () => {
+    setLoading(true);
+
+    if (groupId && user) {
+      api.posts.listByGroup(groupId)
+        .then(data => {
+          setArtworks(data);
+        })
+        .catch(err => {
+          console.error(err);
+          setArtworks([]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+      return;
+    }
+
     let url = '/api/artworks';
     if (groupId) url = `/api/artworks?group_id=${groupId}`;
     else if (userId) url = `/api/artworks?user_id=${userId}`;
@@ -417,13 +435,19 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
       .then(res => res.json())
       .then(data => {
         setArtworks(data);
+      })
+      .catch(err => {
+        console.error(err);
+        setArtworks([]);
+      })
+      .finally(() => {
         setLoading(false);
       });
   };
 
   useEffect(() => {
     fetchArt();
-  }, [groupId, userId]);
+  }, [groupId, userId, user?.id]);
 
   if (loading) return <div className="p-20 text-center font-serif text-3xl animate-pulse text-muted">Curando Galeria...</div>;
 
@@ -502,7 +526,7 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                 </div>
               </div>
 
-              {openComments === art.id && (
+              {!isBackendGroupFeed && openComments === art.id && (
                 <CommentsSection artworkId={art.id} user={user} onCommentAdded={fetchArt} />
               )}
             </div>
@@ -513,15 +537,21 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                   <Trophy size={16} className="text-gold" />
                   {art.total_points}
                 </div>
-                <button 
-                  onClick={() => setOpenComments(openComments === art.id ? null : art.id)}
-                  className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase hover:text-gold transition-colors"
-                >
-                  <MessageSquare size={12} /> Diálogo ({art.comment_count || 0})
-                </button>
+                {isBackendGroupFeed ? (
+                  <span className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase">
+                    <MessageSquare size={12} /> Diálogo (indisponível)
+                  </span>
+                ) : (
+                  <button 
+                    onClick={() => setOpenComments(openComments === art.id ? null : art.id)}
+                    className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase hover:text-gold transition-colors"
+                  >
+                    <MessageSquare size={12} /> Diálogo ({art.comment_count || 0})
+                  </button>
+                )}
               </div>
               
-              {user && user.id !== art.user_id && (
+              {user && user.id !== art.user_id && !isBackendGroupFeed && (
                 <button 
                   onClick={() => setRatingTarget(art)}
                   className="elegant-btn-outline text-[10px] py-1.5 px-4 tracking-widest uppercase font-bold"

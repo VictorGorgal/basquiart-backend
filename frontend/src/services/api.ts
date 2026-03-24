@@ -1,4 +1,4 @@
-import type { Group, User } from '../types';
+import type { Artwork, Group, User } from '../types';
 import { authService } from './auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -17,6 +17,36 @@ type BackendGroupSummary = {
     author: string;
     createdAt: string;
   } | null;
+};
+
+type BackendPost = {
+  id: number;
+  content: string;
+  createdAt: string;
+  authorId: number;
+  groupId: number;
+  author?: {
+    id: number;
+    username: string;
+    createdAt: string;
+  } | null;
+  images?: Array<{
+    id: number;
+    url: string;
+  }> | null;
+  ratings?: Array<{
+    category: string;
+    average: number;
+    totalVotes: number;
+  }> | null;
+};
+
+type BackendPaginatedPosts = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  posts: BackendPost[];
 };
 
 function withAvatar<T extends User>(user: T): T {
@@ -41,6 +71,41 @@ function mapGroupSummary(group: BackendGroupSummary): Group {
     member_count: 0,
     cover_url: undefined,
     created_at: group.lastPost?.createdAt || new Date().toISOString(),
+  };
+}
+
+function ratingAverage(post: BackendPost, category: string): number {
+  const value = post.ratings?.find((item) => item.category === category)?.average ?? 0;
+  return Number(value.toFixed(1));
+}
+
+function mapPostToArtwork(post: BackendPost): Artwork {
+  const username = post.author?.username || `user-${post.authorId}`;
+  const technique = ratingAverage(post, 'Technique');
+  const authenticity = ratingAverage(post, 'Composition');
+  const creativity = ratingAverage(post, 'Creativity');
+  const points = Number((technique + authenticity + creativity).toFixed(1));
+  const ratingCount = post.ratings?.reduce((max, item) => Math.max(max, item.totalVotes), 0) ?? 0;
+  const imageUrl = resolveMediaUrl(post.images?.[0]?.url) || 'https://placehold.co/600x800?text=Sem+imagem';
+  const content = (post.content || '').trim();
+  const title = content ? (content.length > 60 ? `${content.slice(0, 57)}...` : content) : `Post #${post.id}`;
+
+  return {
+    id: post.id,
+    user_id: post.authorId,
+    group_id: post.groupId,
+    username,
+    avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`,
+    title,
+    description: content || 'Sem descricao.',
+    image_url: imageUrl,
+    technique_score: technique,
+    authenticity_score: authenticity,
+    creativity_score: creativity,
+    total_points: points,
+    rating_count: ratingCount,
+    created_at: post.createdAt,
+    comment_count: 0,
   };
 }
 
@@ -134,7 +199,17 @@ export const groupApi = {
   },
 };
 
+export const postApi = {
+  async listByGroup(groupId: number, page = 1, pageSize = 10): Promise<Artwork[]> {
+    const response = await requestWithAuth<BackendPaginatedPosts>(
+      `/posts/${groupId}?page=${page}&page_size=${pageSize}`
+    );
+    return response.posts.map(mapPostToArtwork);
+  },
+};
+
 export const api = {
   auth: authApi,
   groups: groupApi,
+  posts: postApi,
 };

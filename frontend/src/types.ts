@@ -19,6 +19,7 @@ export interface Artwork {
   total_points: number;
   rating_count: number;
   created_at: string;
+  comment_count?: number;
 }
 
 export interface Group {
