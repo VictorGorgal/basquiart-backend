@@ -190,6 +190,7 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
               onChange={(e) => setUsername(e.target.value)}
               className="elegant-input" 
               placeholder=""
+              aria-label="Nome de usuário"
               required
             />
           </div>
@@ -201,6 +202,7 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
               onChange={(e) => setPassword(e.target.value)}
               className="elegant-input"
               placeholder=""
+              aria-label="Senha"
               required
             />
           </div>
@@ -721,6 +723,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-white soft-card py-5 pl-16 pr-6 font-serif text-xl focus:ring-2 focus:ring-gold/20 transition-all outline-none"
+          aria-label="Buscar coletivos"
         />
         {isSearching && (
           <div className="absolute right-6 top-1/2 -translate-y-1/2">
@@ -1172,23 +1175,25 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
 // --- Main App ---
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [page, setPage] = useState('feed');
+  const [user, setUser] = useState<User | null>(() => {
+    const savedUser = authService.getUser();
+    if (!savedUser) return null;
+
+    return {
+      id: savedUser.id,
+      username: savedUser.username,
+      avatar_url:
+        savedUser.avatar_url ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(savedUser.username)}`,
+    };
+  });
+
+  const [page, setPage] = useState(() => (authService.getUser() ? 'feed' : 'login'));
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [selectedArtistId, setSelectedArtistId] = useState<number | null>(null);
   const [selectedArtistName, setSelectedArtistName] = useState<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
-  useEffect(() => {
-    const savedUser = authService.getUser();
-    if (savedUser) {
-      setUser({
-        id: savedUser.id,
-        username: savedUser.username,
-        avatar_url: savedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(savedUser.username)}`,
-      });
-    }
-  }, []);
 
   useEffect(() => {
     console.log("App initialized. User:", user);
