@@ -586,7 +586,6 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
 
 const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: User, onSelectGroup: (g: Group) => void, initialSearchQuery?: string }) => {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [publicGroups, setPublicGroups] = useState<Group[]>([]);
   const [searchResults, setSearchResults] = useState<Group[]>([]);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [showCreate, setShowCreate] = useState(false);
@@ -609,17 +608,6 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
         console.error(err);
         setGroups([]);
       });
-    
-    fetch('/api/groups/public')
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch public groups");
-        return res.json();
-      })
-      .then(data => {
-        console.log("Public groups:", data);
-        setPublicGroups(data);
-      })
-      .catch(err => console.error(err));
   };
 
   useEffect(() => {
@@ -634,19 +622,20 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
     if (searchQuery.trim().length > 1) {
       setIsSearching(true);
       const timer = setTimeout(() => {
-        fetch(`/api/groups/search?q=${searchQuery}`)
-          .then(res => res.json())
-          .then(data => {
-            setSearchResults(data);
-            setIsSearching(false);
-          });
+        const query = searchQuery.trim().toLowerCase();
+        const filtered = groups.filter((group) =>
+          group.name.toLowerCase().includes(query) ||
+          group.description.toLowerCase().includes(query)
+        );
+        setSearchResults(filtered);
+        setIsSearching(false);
       }, 300);
       return () => clearTimeout(timer);
     } else {
       setSearchResults([]);
       setIsSearching(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, groups]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -803,52 +792,9 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
 
       <h2 className="font-sans text-[10px] tracking-widest font-bold text-muted uppercase mb-6">Coletivos Públicos</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {publicGroups.map(group => {
-          const isMember = groups.some(g => g.id === group.id);
-          return (
-            <motion.div 
-              key={group.id}
-              initial={{ y: 20, opacity: 0 }}
-              whileInView={{ y: 0, opacity: 1 }}
-              viewport={{ once: true }}
-              className="soft-card overflow-hidden flex flex-col hover:border-gold/30 cursor-pointer group"
-              onClick={() => onSelectGroup(group)}
-            >
-              {group.cover_url && (
-                <div className="h-32 w-full overflow-hidden">
-                  <img src={group.cover_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
-                </div>
-              )}
-              <div className="p-8 flex flex-col justify-between flex-grow">
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex flex-col">
-                      <h3 className="font-serif text-3xl group-hover:text-gold transition-colors">{group.name}</h3>
-                      {isMember && (
-                        <span className="font-sans text-[8px] tracking-widest font-bold text-gold uppercase mt-1">Você é membro</span>
-                      )}
-                    </div>
-                    <ChevronRight className="text-muted group-hover:text-gold group-hover:translate-x-1 transition-all" />
-                  </div>
-                  <p className="font-sans text-sm text-muted leading-relaxed mb-8">{group.description}</p>
-                </div>
-                <div className="flex justify-between items-center pt-6 border-t border-ink/5">
-                  <div className="flex items-center gap-2 font-sans text-[10px] tracking-widest font-bold uppercase text-muted">
-                    <Users size={14}/> {group.member_count} Membros
-                  </div>
-                  <div className="font-sans text-[10px] tracking-widest font-bold uppercase text-gold/60">
-                    Coletivo Público
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-        {publicGroups.length === 0 && (
-          <div className="col-span-full text-center py-16 rounded-3xl border border-dashed border-ink/10">
-            <p className="font-serif text-xl text-muted italic">Nenhum outro coletivo público disponível.</p>
-          </div>
-        )}
+        <div className="col-span-full text-center py-16 rounded-3xl border border-dashed border-ink/10">
+          <p className="font-serif text-xl text-muted italic">Descoberta de coletivos públicos ainda não disponível no backend oficial.</p>
+        </div>
       </div>
 
       {/* Modals */}
