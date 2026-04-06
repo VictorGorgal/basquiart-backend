@@ -240,6 +240,24 @@ export const postApi = {
       body: formData,
     });
   },
+
+  async rate(
+    postId: number,
+    payload: { technique: number; authenticity: number; creativity: number }
+  ): Promise<void> {
+    const toBackendScore = (value: number) => Math.min(5, Math.max(1, Math.round(value / 2)));
+
+    await jsonRequest<unknown>(`/posts/${postId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ratings: [
+          { category: 'Technique', score: toBackendScore(payload.technique) },
+          { category: 'Composition', score: toBackendScore(payload.authenticity) },
+          { category: 'Creativity', score: toBackendScore(payload.creativity) },
+        ],
+      }),
+    });
+  },
 };
 
 export const api = {

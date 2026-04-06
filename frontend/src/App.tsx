@@ -233,23 +233,47 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
   );
 };
 
-const RatingModal = ({ artwork, user, onClose, onRated }: { artwork: Artwork, user: User, onClose: () => void, onRated: () => void }) => {
+const RatingModal = ({
+  artwork,
+  user,
+  onClose,
+  onRated,
+  useBackendRating,
+}: {
+  artwork: Artwork,
+  user: User,
+  onClose: () => void,
+  onRated: () => void,
+  useBackendRating: boolean
+}) => {
   const [scores, setScores] = useState({ technique: 5, authenticity: 5, creativity: 5 });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await fetch(`/api/artworks/${artwork.id}/rate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, ...scores })
-      });
+      if (useBackendRating) {
+        await api.posts.rate(artwork.id, scores);
+      } else {
+        const response = await fetch(`/api/artworks/${artwork.id}/rate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id, ...scores })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({} as { error?: string }));
+          throw new Error(errorData.error || 'Falha ao avaliar a arte.');
+        }
+      }
+
       onRated();
       onClose();
     } catch (err) {
-      alert("Você já avaliou esta arte!");
+      alert(err instanceof Error ? err.message : 'Falha ao avaliar a arte.');
       onClose();
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -553,7 +577,7 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                 )}
               </div>
               
-              {user && user.id !== art.user_id && !isBackendGroupFeed && (
+              {user && user.id !== art.user_id && (
                 <button 
                   onClick={() => setRatingTarget(art)}
                   className="elegant-btn-outline text-[10px] py-1.5 px-4 tracking-widest uppercase font-bold"
@@ -577,7 +601,8 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
           artwork={ratingTarget} 
           user={user} 
           onClose={() => setRatingTarget(null)} 
-          onRated={fetchArt} 
+          onRated={fetchArt}
+          useBackendRating={isBackendGroupFeed}
         />
       )}
     </div>
