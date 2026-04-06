@@ -216,6 +216,24 @@ export const postApi = {
     );
     return response.posts.map(mapPostToArtwork);
   },
+
+  async createInGroup(
+    groupId: number,
+    payload: { title: string; description: string; image: File }
+  ): Promise<void> {
+    const formData = new FormData();
+    const title = payload.title.trim();
+    const description = payload.description.trim();
+    const content = [title, description].filter(Boolean).join('\n\n') || title;
+
+    formData.append('content', content);
+    formData.append('images', payload.image);
+
+    await requestWithAuth<unknown>(`/posts/${groupId}`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 export const api = {

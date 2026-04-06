@@ -988,6 +988,7 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [userGroups, setUserGroups] = useState<Group[]>([]);
   const [visibility, setVisibility] = useState<'public' | 'private'>(groupId ? 'private' : 'public');
@@ -1012,21 +1013,36 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+    } else {
+      setImageFile(null);
+      setImage(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!image || !title) return;
-    if (visibility === 'private' && !selectedGroupId) return;
+    if (!title) return;
+    if (visibility === 'private' && (!selectedGroupId || !imageFile)) return;
+    if (visibility === 'public' && !image) return;
 
     setSubmitting(true);
     try {
+      if (visibility === 'private' && selectedGroupId && imageFile) {
+        await api.posts.createInGroup(selectedGroupId, {
+          title,
+          description,
+          image: imageFile,
+        });
+        onComplete();
+        return;
+      }
+
       await fetch('/api/artworks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1147,7 +1163,13 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
             <div className="pt-8">
               <button 
                 type="submit"
-                disabled={submitting || !image || (visibility === 'private' && !selectedGroupId)}
+                disabled={
+                  submitting ||
+                  !title ||
+                  (visibility === 'private'
+                    ? !selectedGroupId || !imageFile
+                    : !image)
+                }
                 className="w-full elegant-btn-primary py-5 text-lg"
               >
                 {submitting ? 'Publicando...' : 'Publicar na Galeria'}
