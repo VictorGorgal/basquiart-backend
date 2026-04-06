@@ -31,6 +31,10 @@ class RatePostBody(BaseModel):
         return v
 
 
+class CreateCommentBody(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+
 class AuthorResponse(BaseModel):
     id: int
     username: str
@@ -80,3 +84,23 @@ class PaginatedPostsResponse(BaseModel):
     total: int
     totalPages: int
     posts: list[PostResponse]
+
+
+class CommentAuthorResponse(BaseModel):
+    id: int
+    username: str
+
+    class Config:
+        from_attributes = True
+
+
+class CommentResponse(BaseModel):
+    id: int
+    content: str
+    createdAt: datetime
+    userId: int
+    postId: int
+    user: CommentAuthorResponse
+
+    class Config:
+        from_attributes = True

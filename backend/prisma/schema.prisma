@@ -20,6 +20,7 @@ model User {
   receivedInvites Invite[]   @relation("InviteReceiver")
   likes           PostLike[]
   ratings         PostRating[]
+  comments        PostComment[]
 }
 
 model Group {
@@ -78,6 +79,7 @@ model Post {
   images   PostImage[]
   likes    PostLike[]
   ratings  PostRating[]
+  comments PostComment[]
 }
 
 model PostImage {
@@ -98,6 +100,17 @@ model PostLike {
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+}
+
+model PostComment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+
+  userId Int
+  postId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model RatingCategory {

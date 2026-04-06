@@ -178,3 +178,44 @@ class PostService:
             results.append(rating)
 
         return results
+
+    async def get_comments(self, user_id: int, post_id: int):
+        post = await self.db.post.find_unique(where={"id": post_id}, include={"group": True})
+        if not post:
+            raise ValueError("Post not found")
+
+        membership = await self.db.groupmember.find_unique(
+            where={"userId_groupId": {"userId": user_id, "groupId": post.groupId}}
+        )
+        if not membership:
+            raise ValueError("You are not a member of this group")
+
+        return await self.db.postcomment.find_many(
+            where={"postId": post_id},
+            order={"createdAt": "asc"},
+            include={"user": True},
+        )
+
+    async def create_comment(self, user_id: int, post_id: int, content: str):
+        post = await self.db.post.find_unique(where={"id": post_id}, include={"group": True})
+        if not post:
+            raise ValueError("Post not found")
+
+        membership = await self.db.groupmember.find_unique(
+            where={"userId_groupId": {"userId": user_id, "groupId": post.groupId}}
+        )
+        if not membership:
+            raise ValueError("You are not a member of this group")
+
+        clean_content = content.strip()
+        if not clean_content:
+            raise ValueError("Comment cannot be empty")
+
+        return await self.db.postcomment.create(
+            data={
+                "content": clean_content,
+                "userId": user_id,
+                "postId": post_id,
+            },
+            include={"user": True},
+        )
