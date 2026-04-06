@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, Uplo
 from features.auth.utils import get_current_user
 from features.post.image_handler import image_handler
 from features.post.service import PostService
-from features.post.schema import RatePostBody, PaginatedPostsResponse
+from features.post.schema import RatePostBody, PaginatedPostsResponse, CreateCommentBody, CommentResponse
 from features.core.database import db
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -57,6 +57,29 @@ async def toggle_like(
 ):
     try:
         return await service.toggle_like(user_id, post_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{post_id}/comments", response_model=list[CommentResponse])
+async def get_comments(
+    post_id: int,
+    user_id: int = Depends(get_current_user),
+):
+    try:
+        return await service.get_comments(user_id, post_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{post_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
+async def create_comment(
+    post_id: int,
+    body: CreateCommentBody,
+    user_id: int = Depends(get_current_user),
+):
+    try:
+        return await service.create_comment(user_id, post_id, body.content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

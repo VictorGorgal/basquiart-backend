@@ -5,10 +5,19 @@ class GroupService:
     def __init__(self, db: Prisma):
         self.db = db
 
-    async def create_group(self, user_id, name, description):
+    @staticmethod
+    def _to_api_visibility(value: str) -> str:
+        return "public" if value == "PUBLIC" else "private"
+
+    async def create_group(self, user_id, name, description, visibility):
+        requester = await self.db.user.find_unique(where={"id": user_id})
+        if not requester:
+            raise ValueError("User not found. Please log in again.")
+
         group = await self.db.group.create(data={
             "name": name,
             "description": description,
+            "visibility": visibility.upper(),
             "members": {
                 "create": {
                     "userId": user_id,
@@ -82,7 +91,8 @@ class GroupService:
                             "order_by": {"createdAt": "desc"},
                             "take": 1,
                             "include": {"author": True},
-                        }
+                        },
+                        "members": True,
                     }
                 }
             },
@@ -93,6 +103,9 @@ class GroupService:
                 "groupId": m.groupId,
                 "name": m.group.name,
                 "role": m.role,
+                "description": m.group.description or "",
+                "member_count": len(m.group.members),
+                "visibility": self._to_api_visibility(m.group.visibility),
                 "lastPost": {
                     "content": m.group.posts[0].content,
                     "author": m.group.posts[0].author.username,
@@ -101,6 +114,38 @@ class GroupService:
             }
             for m in memberships
         ]
+
+    async def list_public_groups(self, user_id):
+        memberships = await self.db.groupmember.find_many(where={"userId": user_id})
+        my_group_ids = {membership.groupId for membership in memberships}
+
+        groups = await self.db.group.find_many(
+            where={"visibility": "PUBLIC"},
+            include={"members": True},
+        )
+
+        public_groups = []
+        for group in groups:
+            if group.id in my_group_ids:
+                continue
+
+            owner_id = next((member.userId for member in group.members if member.role == "OWNER"), 0)
+
+            public_groups.append(
+                {
+                    "id": group.id,
+                    "name": group.name,
+                    "description": group.description or "",
+                    "member_count": len(group.members),
+                    "invite_code": "",
+                    "visibility": self._to_api_visibility(group.visibility),
+                    "creator_id": owner_id,
+                    "created_at": group.createdAt,
+                    "cover_url": None,
+                }
+            )
+
+        return public_groups
 
     async def remove_member(self, user_id, group_id, member_id):
         requester = await self.db.groupmember.find_unique(

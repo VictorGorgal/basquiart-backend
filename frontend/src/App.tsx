@@ -233,23 +233,47 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
   );
 };
 
-const RatingModal = ({ artwork, user, onClose, onRated }: { artwork: Artwork, user: User, onClose: () => void, onRated: () => void }) => {
+const RatingModal = ({
+  artwork,
+  user,
+  onClose,
+  onRated,
+  useBackendRating,
+}: {
+  artwork: Artwork,
+  user: User,
+  onClose: () => void,
+  onRated: () => void,
+  useBackendRating: boolean
+}) => {
   const [scores, setScores] = useState({ technique: 5, authenticity: 5, creativity: 5 });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await fetch(`/api/artworks/${artwork.id}/rate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, ...scores })
-      });
+      if (useBackendRating) {
+        await api.posts.rate(artwork.id, scores);
+      } else {
+        const response = await fetch(`/api/artworks/${artwork.id}/rate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id, ...scores })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({} as { error?: string }));
+          throw new Error(errorData.error || 'Falha ao avaliar a arte.');
+        }
+      }
+
       onRated();
       onClose();
     } catch (err) {
-      alert("Você já avaliou esta arte!");
+      alert(err instanceof Error ? err.message : 'Falha ao avaliar a arte.');
       onClose();
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -293,14 +317,39 @@ const RatingModal = ({ artwork, user, onClose, onRated }: { artwork: Artwork, us
   );
 };
 
-const CommentsSection = ({ artworkId, user, onCommentAdded }: { artworkId: number, user: User | null, onCommentAdded?: () => void }) => {
+const CommentsSection = ({
+  artworkId,
+  user,
+  onCommentAdded,
+  useBackendComments = false,
+}: {
+  artworkId: number,
+  user: User | null,
+  onCommentAdded?: () => void,
+  useBackendComments?: boolean
+}) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchComments = () => {
+    setLoading(true);
     console.log("Fetching comments for artwork:", artworkId);
+
+    if (useBackendComments) {
+      api.posts.listComments(artworkId)
+        .then(data => {
+          setComments(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Error fetching comments:", err);
+          setLoading(false);
+        });
+      return;
+    }
+
     fetch(`/api/artworks/${artworkId}/comments`)
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch comments");
@@ -330,6 +379,14 @@ const CommentsSection = ({ artworkId, user, onCommentAdded }: { artworkId: numbe
     }
     setSubmitting(true);
     try {
+      if (useBackendComments) {
+        await api.posts.createComment(artworkId, newComment);
+        setNewComment('');
+        fetchComments();
+        if (onCommentAdded) onCommentAdded();
+        return;
+      }
+
       const res = await fetch(`/api/artworks/${artworkId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -345,7 +402,7 @@ const CommentsSection = ({ artworkId, user, onCommentAdded }: { artworkId: numbe
       }
     } catch (err) {
       console.error(err);
-      alert("Erro de conexão ao postar comentário");
+      alert(err instanceof Error ? err.message : "Erro de conexão ao postar comentário");
     } finally {
       setSubmitting(false);
     }
@@ -409,8 +466,38 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
   const [loading, setLoading] = useState(true);
   const [ratingTarget, setRatingTarget] = useState<Artwork | null>(null);
   const [openComments, setOpenComments] = useState<number | null>(null);
+  const [likingPostIds, setLikingPostIds] = useState<number[]>([]);
   const isBackendGroupFeed = Boolean(groupId);
 
+  const handleToggleLike = async (artwork: Artwork) => {
+    if (!isBackendGroupFeed || !user) return;
+    if (likingPostIds.includes(artwork.id)) return;
+
+    setLikingPostIds(prev => [...prev, artwork.id]);
+    try {
+      const response = await api.posts.toggleLike(artwork.id);
+      setArtworks(prev => prev.map(item => {
+        if (item.id !== artwork.id) return item;
+
+        const currentlyLiked = Boolean(item.has_liked);
+        const currentlyCount = item.like_count || 0;
+        const nextLiked = response.liked;
+        const nextCount = nextLiked
+          ? (currentlyLiked ? currentlyCount : currentlyCount + 1)
+          : (currentlyLiked ? Math.max(0, currentlyCount - 1) : currentlyCount);
+
+        return {
+          ...item,
+          has_liked: nextLiked,
+          like_count: nextCount,
+        };
+      }));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLikingPostIds(prev => prev.filter(id => id !== artwork.id));
+    }
+  };
   const fetchArt = () => {
     setLoading(true);
 
@@ -528,8 +615,13 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                 </div>
               </div>
 
-              {!isBackendGroupFeed && openComments === art.id && (
-                <CommentsSection artworkId={art.id} user={user} onCommentAdded={fetchArt} />
+              {openComments === art.id && (
+                <CommentsSection
+                  artworkId={art.id}
+                  user={user}
+                  onCommentAdded={fetchArt}
+                  useBackendComments={isBackendGroupFeed}
+                />
               )}
             </div>
 
@@ -539,21 +631,25 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                   <Trophy size={16} className="text-gold" />
                   {art.total_points}
                 </div>
-                {isBackendGroupFeed ? (
-                  <span className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase">
-                    <MessageSquare size={12} /> Diálogo (indisponível)
-                  </span>
-                ) : (
-                  <button 
-                    onClick={() => setOpenComments(openComments === art.id ? null : art.id)}
-                    className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase hover:text-gold transition-colors"
+
+                <button 
+                  onClick={() => setOpenComments(openComments === art.id ? null : art.id)}
+                  className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase hover:text-gold transition-colors"
+                >
+                  <MessageSquare size={12} /> Diálogo ({art.comment_count || 0})
+                </button>
+                {isBackendGroupFeed && (
+                  <button
+                    onClick={() => void handleToggleLike(art)}
+                    disabled={likingPostIds.includes(art.id)}
+                    className={`flex items-center gap-1.5 font-sans text-[9px] tracking-widest uppercase transition-colors ${art.has_liked ? 'text-red-500' : 'text-muted hover:text-red-500'} disabled:opacity-40`}
                   >
-                    <MessageSquare size={12} /> Diálogo ({art.comment_count || 0})
+                    <Heart size={12} fill={art.has_liked ? 'currentColor' : 'none'} /> Curtidas ({art.like_count || 0})
                   </button>
                 )}
               </div>
               
-              {user && user.id !== art.user_id && !isBackendGroupFeed && (
+              {user && user.id !== art.user_id && (
                 <button 
                   onClick={() => setRatingTarget(art)}
                   className="elegant-btn-outline text-[10px] py-1.5 px-4 tracking-widest uppercase font-bold"
@@ -577,7 +673,8 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
           artwork={ratingTarget} 
           user={user} 
           onClose={() => setRatingTarget(null)} 
-          onRated={fetchArt} 
+          onRated={fetchArt}
+          useBackendRating={isBackendGroupFeed}
         />
       )}
     </div>
@@ -609,17 +706,27 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
         console.error(err);
         setGroups([]);
       });
-    
-    fetch('/api/groups/public')
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch public groups");
-        return res.json();
-      })
+    api.groups.listPublic()
       .then(data => {
-        console.log("Public groups:", data);
         setPublicGroups(data);
       })
-      .catch(err => console.error(err));
+      .catch(err => {
+        console.error(err);
+
+        // Fallback for CI/E2E mocks that still provide /api/groups/public.
+        fetch('/api/groups/public')
+          .then(res => {
+            if (!res.ok) throw new Error("Failed to fetch public groups");
+            return res.json();
+          })
+          .then(data => {
+            setPublicGroups(data);
+          })
+          .catch(fallbackErr => {
+            console.error(fallbackErr);
+            setPublicGroups([]);
+          });
+      });
   };
 
   useEffect(() => {
@@ -634,44 +741,39 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
     if (searchQuery.trim().length > 1) {
       setIsSearching(true);
       const timer = setTimeout(() => {
-        fetch(`/api/groups/search?q=${searchQuery}`)
-          .then(res => res.json())
-          .then(data => {
-            setSearchResults(data);
-            setIsSearching(false);
-          });
+        const query = searchQuery.trim().toLowerCase();
+        const combined = [...groups, ...publicGroups].filter(
+          (group, index, self) => self.findIndex((item) => item.id === group.id) === index
+        );
+        const filtered = combined.filter((group) =>
+          group.name.toLowerCase().includes(query) ||
+          group.description.toLowerCase().includes(query)
+        );
+        setSearchResults(filtered);
+        setIsSearching(false);
       }, 300);
       return () => clearTimeout(timer);
     } else {
       setSearchResults([]);
       setIsSearching(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, groups, publicGroups]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Creating group:", name, "User:", user.id);
     try {
-      const res = await fetch('/api/groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, creator_id: user.id, visibility, cover_url: coverUrl })
-      });
-      
-      if (res.ok) {
-        setName('');
-        setDescription('');
-        setVisibility('public');
-        setCoverUrl(null);
-        setShowCreate(false);
-        fetchGroups();
-      } else {
-        const err = await res.json();
-        alert(err.error || "Erro ao criar coletivo");
-      }
+      await api.groups.create(name, description, visibility);
+
+      setName('');
+      setDescription('');
+      setVisibility('public');
+      setCoverUrl(null);
+      setShowCreate(false);
+      fetchGroups();
     } catch (err) {
       console.error(err);
-      alert("Erro de conexão ao criar coletivo");
+      alert(err instanceof Error ? err.message : "Erro ao criar coletivo");
     }
   };
 
@@ -688,17 +790,41 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/groups/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invite_code: inviteCode, user_id: user.id })
-    });
-    if (res.ok) {
+    const inviteId = Number(inviteCode.trim());
+    if (!Number.isInteger(inviteId) || inviteId <= 0) {
+      alert('Informe um ID de convite valido.');
+      return;
+    }
+
+    try {
+      await api.groups.acceptInvite(inviteId);
       setInviteCode('');
       setShowJoin(false);
       fetchGroups();
-    } else {
-      alert("Código inválido ou você já é um membro");
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Nao foi possivel entrar no coletivo.');
+    }
+  };
+
+  const handleCreateInvite = async (groupId: number) => {
+    const rawUserId = window.prompt('Informe o ID numerico do usuario para convidar:');
+    if (!rawUserId) {
+      return;
+    }
+
+    const receiverId = Number(rawUserId.trim());
+    if (!Number.isInteger(receiverId) || receiverId <= 0) {
+      alert('Informe um ID de usuario valido.');
+      return;
+    }
+
+    try {
+      const inviteId = await api.groups.sendInvite(groupId, receiverId);
+      alert(`Convite criado com sucesso. ID do convite: ${inviteId}`);
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Nao foi possivel criar o convite.');
     }
   };
 
@@ -794,8 +920,22 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
                   <Users size={14}/> {group.member_count} Membros
                 </div>
                 <div className="font-sans text-[10px] tracking-widest font-bold uppercase text-gold/60">
-                  {group.invite_code ? `Codigo: ${group.invite_code}` : 'Integrado via backend'}
+                  {group.invite_code
+                    ? `Código: ${group.invite_code}`
+                    : group.visibility === 'private'
+                      ? 'Coletivo Privado'
+                      : 'Coletivo Público'}
                 </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleCreateInvite(group.id);
+                  }}
+                  className="font-sans text-[9px] tracking-widest font-bold uppercase text-muted hover:text-gold transition-colors"
+                >
+                  Convidar
+                </button>
               </div>
             </div>
           </motion.div>
@@ -930,11 +1070,19 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm">
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white soft-card p-10 w-full max-w-md">
               <h3 className="font-serif text-3xl mb-2">Participar do Coletivo</h3>
-              <p className="text-muted text-sm mb-8">Insira o código de convite único para obter acesso.</p>
+              <p className="text-muted text-sm mb-8">Insira o ID numerico do convite para obter acesso.</p>
               <form onSubmit={handleJoin} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="font-sans text-[10px] tracking-widest font-semibold text-muted uppercase">Código de Convite</label>
-                  <input value={inviteCode} onChange={e => setInviteCode(e.target.value)} placeholder="" className="elegant-input text-center tracking-[0.5em] font-semibold" required />
+                  <label className="font-sans text-[10px] tracking-widest font-semibold text-muted uppercase">ID do Convite</label>
+                  <input
+                    value={inviteCode}
+                    onChange={e => setInviteCode(e.target.value)}
+                    placeholder=""
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="elegant-input text-center font-semibold"
+                    required
+                  />
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button type="button" onClick={() => setShowJoin(false)} className="flex-1 elegant-btn-outline">CANCELAR</button>
@@ -997,6 +1145,7 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [userGroups, setUserGroups] = useState<Group[]>([]);
   const [visibility, setVisibility] = useState<'public' | 'private'>(groupId ? 'private' : 'public');
@@ -1021,21 +1170,36 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+    } else {
+      setImageFile(null);
+      setImage(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!image || !title) return;
-    if (visibility === 'private' && !selectedGroupId) return;
+    if (!title) return;
+    if (visibility === 'private' && (!selectedGroupId || !imageFile)) return;
+    if (visibility === 'public' && !image) return;
 
     setSubmitting(true);
     try {
+      if (visibility === 'private' && selectedGroupId && imageFile) {
+        await api.posts.createInGroup(selectedGroupId, {
+          title,
+          description,
+          image: imageFile,
+        });
+        onComplete();
+        return;
+      }
+
       await fetch('/api/artworks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1156,7 +1320,13 @@ const SubmitPage = ({ user, groupId, onComplete }: { user: User, groupId?: numbe
             <div className="pt-8">
               <button 
                 type="submit"
-                disabled={submitting || !image || (visibility === 'private' && !selectedGroupId)}
+                disabled={
+                  submitting ||
+                  !title ||
+                  (visibility === 'private'
+                    ? !selectedGroupId || !imageFile
+                    : !image)
+                }
                 className="w-full elegant-btn-primary py-5 text-lg"
               >
                 {submitting ? 'Publicando...' : 'Publicar na Galeria'}

@@ -20,6 +20,8 @@ export interface Artwork {
   rating_count: number;
   created_at: string;
   comment_count?: number;
+  like_count?: number;
+  has_liked?: boolean;
 }
 
 export interface Group {
