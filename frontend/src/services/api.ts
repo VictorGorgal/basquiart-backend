@@ -25,6 +25,7 @@ type BackendPost = {
   createdAt: string;
   authorId: number;
   groupId: number;
+  commentCount?: number;
   author?: {
     id: number;
     username: string;
@@ -133,7 +134,7 @@ function mapPostToArtwork(post: BackendPost): Artwork {
     total_points: points,
     rating_count: ratingCount,
     created_at: post.createdAt,
-    comment_count: 0,
+    comment_count: post.commentCount ?? 0,
     like_count: post.likes?.totalLikes ?? 0,
     has_liked: post.likes?.hasLiked ?? false,
   };
