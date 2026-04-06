@@ -398,11 +398,11 @@ const CommentsSection = ({
         if (onCommentAdded) onCommentAdded();
       } else {
         const err = await res.json();
-        alert(err.error || "Erro ao postar comentário");
+        alert(err.error || "Erro ao postar comentÃ¡rio");
       }
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : "Erro de conexão ao postar comentário");
+      alert(err instanceof Error ? err.message : "Erro de conexÃ£o ao postar comentÃ¡rio");
     } finally {
       setSubmitting(false);
     }
@@ -636,7 +636,7 @@ const FeedPage = ({ user, groupId, groupName, userId, userName, onNavigateToSubm
                   onClick={() => setOpenComments(openComments === art.id ? null : art.id)}
                   className="flex items-center gap-1.5 font-sans text-[9px] tracking-widest text-muted uppercase hover:text-gold transition-colors"
                 >
-                  <MessageSquare size={12} /> Diálogo ({art.comment_count || 0})
+                  <MessageSquare size={12} /> DiÃ¡logo ({art.comment_count || 0})
                 </button>
                 {isBackendGroupFeed && (
                   <button
@@ -899,7 +899,11 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
                   <Users size={14}/> {group.member_count} Membros
                 </div>
                 <div className="font-sans text-[10px] tracking-widest font-bold uppercase text-gold/60">
-                  {group.invite_code ? `Codigo: ${group.invite_code}` : 'Integrado via backend'}
+                  {group.invite_code
+                    ? `CÃ³digo: ${group.invite_code}`
+                    : group.visibility === 'private'
+                      ? 'Coletivo Privado'
+                      : 'Coletivo PÃºblico'}
                 </div>
               </div>
             </div>
@@ -912,7 +916,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
         )}
       </div>
 
-      <h2 className="font-sans text-[10px] tracking-widest font-bold text-muted uppercase mb-6">Coletivos Públicos</h2>
+      <h2 className="font-sans text-[10px] tracking-widest font-bold text-muted uppercase mb-6">Coletivos PÃºblicos</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {publicGroups.map(group => {
           const isMember = groups.some(g => g.id === group.id);
@@ -936,7 +940,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
                     <div className="flex flex-col">
                       <h3 className="font-serif text-3xl group-hover:text-gold transition-colors">{group.name}</h3>
                       {isMember && (
-                        <span className="font-sans text-[8px] tracking-widest font-bold text-gold uppercase mt-1">Você é membro</span>
+                        <span className="font-sans text-[8px] tracking-widest font-bold text-gold uppercase mt-1">VocÃª Ã© membro</span>
                       )}
                     </div>
                     <ChevronRight className="text-muted group-hover:text-gold group-hover:translate-x-1 transition-all" />
@@ -948,7 +952,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
                     <Users size={14}/> {group.member_count} Membros
                   </div>
                   <div className="font-sans text-[10px] tracking-widest font-bold uppercase text-gold/60">
-                    Coletivo Público
+                    Coletivo PÃºblico
                   </div>
                 </div>
               </div>
@@ -957,7 +961,7 @@ const GroupsPage = ({ user, onSelectGroup, initialSearchQuery = '' }: { user: Us
         })}
         {publicGroups.length === 0 && (
           <div className="col-span-full text-center py-16 rounded-3xl border border-dashed border-ink/10">
-            <p className="font-serif text-xl text-muted italic">Nenhum outro coletivo público disponível.</p>
+            <p className="font-serif text-xl text-muted italic">Nenhum outro coletivo pÃºblico disponÃ­vel.</p>
           </div>
         )}
       </div>

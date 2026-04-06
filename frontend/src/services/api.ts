@@ -97,7 +97,7 @@ function mapGroupSummary(group: BackendGroupSummary): Group {
     creator_id: 0,
     invite_code: '',
     visibility: 'private',
-    member_count: 0,
+    member_count: 1,
     cover_url: undefined,
     created_at: group.lastPost?.createdAt || new Date().toISOString(),
   };
@@ -180,6 +180,52 @@ export function resolveMediaUrl(url?: string | null): string | null {
   return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
+function extractApiErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object') {
+    return fallback;
+  }
+
+  const payload = data as Record<string, unknown>;
+  const detail = payload.detail;
+
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+
+        if (item && typeof item === 'object') {
+          const msg = (item as Record<string, unknown>).msg;
+          if (typeof msg === 'string') {
+            return msg;
+          }
+        }
+
+        return '';
+      })
+      .filter(Boolean);
+
+    if (messages.length > 0) {
+      return messages.join(' | ');
+    }
+  }
+
+  if (typeof payload.error === 'string' && payload.error.trim()) {
+    return payload.error;
+  }
+
+  if (typeof payload.message === 'string' && payload.message.trim()) {
+    return payload.message;
+  }
+
+  return fallback;
+}
+
 async function requestWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = authService.getToken();
   const headers = new Headers(options.headers);
@@ -204,8 +250,8 @@ async function requestWithAuth<T>(endpoint: string, options: RequestInit = {}): 
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({} as { detail?: string }));
-    throw new Error(errorData.detail || `API error: ${response.statusText}`);
+    const errorData = await response.json().catch(() => undefined);
+    throw new Error(extractApiErrorMessage(errorData, `API error: ${response.statusText}`));
   }
 
   if (response.status === 204 || response.headers.get('content-length') === '0') {
