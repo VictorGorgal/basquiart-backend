@@ -11,7 +11,6 @@ MAX_SIZE_MB = 50
 class ImageHandler:
     def __init__(self, upload_dir: str = UPLOAD_DIR):
         self.upload_dir = upload_dir
-        os.makedirs(upload_dir, exist_ok=True)
 
     async def save(self, file: UploadFile) -> str:
         """Validates and saves an image, returns the URL path."""
@@ -55,4 +54,5 @@ class ImageHandler:
         return f"{uuid.uuid4()}.{ext}"
 
 
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 image_handler = ImageHandler()
