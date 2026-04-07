@@ -25,12 +25,16 @@ class PostService:
         self.db = db
         self.image_handler = image_handler
 
-    async def get_posts(self, user_id, group_id, page, page_size):
+    async def assertUserIsMemberOfGroup(self, user_id, group_id):
         membership = await self.db.groupmember.find_unique(
             where={"userId_groupId": {"userId": user_id, "groupId": group_id}}
         )
+
         if not membership:
             raise ValueError("You are not a member of this group")
+
+    async def get_posts(self, user_id, group_id, page, page_size):
+        await self.assertUserIsMemberOfGroup(user_id, group_id)
 
         skip = (page - 1) * page_size
 
@@ -77,11 +81,7 @@ class PostService:
                 url = await self.image_handler.save(image)
                 image_urls.append(url)
 
-            membership = await self.db.groupmember.find_unique(
-                where={"userId_groupId": {"userId": user_id, "groupId": group_id}}
-            )
-            if not membership:
-                raise ValueError("You are not a member of this group")
+            await self.assertUserIsMemberOfGroup(user_id, group_id)
 
             post = await self.db.post.create(
                 data={
@@ -186,11 +186,7 @@ class PostService:
         if not post:
             raise ValueError("Post not found")
 
-        membership = await self.db.groupmember.find_unique(
-            where={"userId_groupId": {"userId": user_id, "groupId": post.groupId}}
-        )
-        if not membership:
-            raise ValueError("You are not a member of this group")
+        await self.assertUserIsMemberOfGroup(user_id, post.groupId)
 
         return await self.db.postcomment.find_many(
             where={"postId": post_id},
@@ -203,11 +199,7 @@ class PostService:
         if not post:
             raise ValueError("Post not found")
 
-        membership = await self.db.groupmember.find_unique(
-            where={"userId_groupId": {"userId": user_id, "groupId": post.groupId}}
-        )
-        if not membership:
-            raise ValueError("You are not a member of this group")
+        await self.assertUserIsMemberOfGroup(user_id, post.groupId)
 
         clean_content = content.strip()
         if not clean_content:
